@@ -32,11 +32,11 @@ def execute_command(clients, idx, commands):
 @app.route('/static_nat')
 def set_static_nat():
     clients = connect()
-    command_a = ['ip subnet-zero',
-                 'ip route 0.0.0.0 0.0.0.0 192.168.1.1',
-                 'ip route 192.168.1.32 255.255.255.224',
-                 'ip route 0.0.0.0 0.0.0.0 10.0.0.1',
-                 'ip nat inside source static 10.0.0.2 192.168.1.34',
+    # 'ip subnet-zero',
+    # 'ip route 0.0.0.0 0.0.0.0 192.168.1.1',     # RTA
+    # 'ip route 192.168.1.32 255.255.255.224',    # RTB
+    # 'ip route 0.0.0.0 0.0.0.0 10.0.0.1',        # RTC
+    command_a = ['ip nat inside source static 10.0.0.2 192.168.1.34',
                  'ip nat inside source static 10.0.0.11 192.168.1.35',
                  'interface e0',
                  'ip nat inside',
@@ -65,15 +65,15 @@ def set_dynamic_nat():
     clients = connect()
     command_a = ['ip nat pool globalXXYZ 192.168.1.33 192.168.1.57 netmask 255.255.255.224',
                  'access-list 1 permit 10.0.0.0 0.255.255.255',
-                 'ip nat inside source list 1 pool globalXYZ overload',
-                 'ip http server',
-                 'ip nat pool Webservers 10.0.0.1 10.0.0.2 netmask 255.0.0.0 type rotary',
-                 'access-list 2 permit host 192.169.1.60',
-                 'ip nat inside destination list 2 pool Webservers']
-    command_c = ['ip http server']
+                 'ip nat inside source list 1 pool globalXYZ overload']
+    # 'ip http server',
+    # 'ip nat pool Webservers 10.0.0.1 10.0.0.2 netmask 255.0.0.0 type rotary',
+    # 'access-list 2 permit host 192.169.1.60',
+    # 'ip nat inside destination list 2 pool Webservers'
+    # command_c = ['ip http server']
     result = []
     result.extend(execute_command(clients, 0, command_a))
-    result.extend(execute_command(clients, 2, command_c))
+    # result.extend(execute_command(clients, 2, command_c))
     return make_response(jsonify(result), 200)
 
 
