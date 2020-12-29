@@ -9,12 +9,13 @@ def connect():
     if g.connections and g.connections.length > 0:
         return g.connections
     rta = {'host_ip': '192.168.1.2', 'username': '', 'password': 'CISCO'}
-    rtb = {'host_ip': '192.168.1.1', 'username': '', 'password': 'CISCO'}
-    rtc = {'host_ip': '10.0.0.2', 'username': '', 'password': 'CISCO'}
+    # rtb = {'host_ip': '192.168.1.1', 'username': '', 'password': 'CISCO'}
+    # rtc = {'host_ip': '10.0.0.2', 'username': '', 'password': 'CISCO'}
     client1 = services.init_connection(rta.get('host_ip'), rta.get('username'), rta.get('password'))
-    client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
-    client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
-    g.connections = [client1, client2, client3]
+    # client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
+    # client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
+    # g.connections = [client1, client2, client3]
+    g.connections = [client1]
     return g.connections
 
 
