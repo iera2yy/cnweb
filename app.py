@@ -19,7 +19,19 @@ def connect():
     return g.connections
 
 
+# 执行命令行
+def execute_command(clients, idx, commands):
+    response = []
+    if clients[idx].login_host():
+        response = clients[idx].execute_some_command(commands)
+        if clients[idx].logout_host():
+            g.connections = []
+    g.static = True
+    return response
+
+
 # 配置路由器信息
+@app.route('/router_config')
 def config_routers():
     clients = connect()
     command_a = ['enable',
@@ -54,17 +66,6 @@ def config_routers():
     result.extend(execute_command(clients, 1, command_b))
     result.extend(execute_command(clients, 2, command_c))
     return make_response(jsonify(result), 200)
-
-
-# 执行命令行
-def execute_command(clients, idx, commands):
-    response = []
-    if clients[idx].login_host():
-        response = clients[idx].execute_some_command(commands)
-        if clients[idx].logout_host():
-            g.connections = []
-    g.static = True
-    return response
 
 
 # 配置静态NAT
@@ -105,7 +106,11 @@ def set_dynamic_nat():
     clients = connect()
     command_a = ['ip nat pool globalXXYZ 192.168.1.33 192.168.1.57 netmask 255.255.255.224',
                  'access-list 1 permit 10.0.0.0 0.255.255.255',
-                 'ip nat inside source list 1 pool globalXYZ overload']
+                 'ip nat inside source list 1 pool globalXYZ overload',
+                 'interface e0',
+                 'ip nat inside',
+                 'interface s0',
+                 'ip nat outside']
     # 'ip http server',
     # 'ip nat pool Webservers 10.0.0.1 10.0.0.2 netmask 255.0.0.0 type rotary',
     # 'access-list 2 permit host 192.169.1.60',
@@ -129,7 +134,7 @@ def show_nat():
 
 
 # 核验配置
-@app.route('/show_command')
+@app.route('/show_config')
 def show_command():
     clients = connect()
     command_a = ['show running-config',
