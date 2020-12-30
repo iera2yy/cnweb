@@ -9,16 +9,54 @@ def connect():
     if g.connections and g.connections.length > 0:
         return g.connections
     rta = {'host_ip': '192.168.1.2', 'username': '', 'password': 'CISCO'}
-    # rtb = {'host_ip': '192.168.1.1', 'username': '', 'password': 'CISCO'}
-    # rtc = {'host_ip': '10.0.0.2', 'username': '', 'password': 'CISCO'}
+    rtb = {'host_ip': '192.168.1.1', 'username': '', 'password': 'CISCO'}
+    rtc = {'host_ip': '10.0.0.2', 'username': '', 'password': 'CISCO'}
     client1 = services.init_connection(rta.get('host_ip'), rta.get('username'), rta.get('password'))
-    # client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
-    # client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
-    # g.connections = [client1, client2, client3]
-    g.connections = [client1]
+    client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
+    client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
+    g.connections = [client1, client2, client3]
+    # g.connections = [client1]
     return g.connections
 
 
+# 配置路由器信息
+def config_routers():
+    clients = connect()
+    command_a = ['enable',
+                 'CISCO',
+                 'conf ter',
+                 'int f0/0',
+                 'ip address 10.0.0.1 255.0.0.0',
+                 'no shutdown',
+                 'int s0/0/0',
+                 'ip address 192.168.1.2 255.255.255.252',
+                 'no shutdown',
+                 'end']
+    command_b = ['enable',
+                 'CISCO',
+                 'conf ter',
+                 'int f0/0',
+                 'ip address 192.168.3.1 255.255.255.0',
+                 'no shutdown',
+                 'int s0/0/0',
+                 'ip address 192.168.1.1 255.255.255.252',
+                 'no shutdown',
+                 'end']
+    command_c = ['enable',
+                 'CISCO',
+                 'conf ter',
+                 'int f0/0',
+                 'ip address 10.0.0.2 255.0.0.0',
+                 'no shutdown',
+                 'end']
+    result = []
+    result.extend(execute_command(clients, 0, command_a))
+    result.extend(execute_command(clients, 1, command_b))
+    result.extend(execute_command(clients, 2, command_c))
+    return make_response(jsonify(result), 200)
+
+
+# 执行命令行
 def execute_command(clients, idx, commands):
     response = []
     if clients[idx].login_host():
@@ -33,17 +71,18 @@ def execute_command(clients, idx, commands):
 @app.route('/static_nat')
 def set_static_nat():
     clients = connect()
+    result = []
     # 'ip subnet-zero',
-    # 'ip route 0.0.0.0 0.0.0.0 192.168.1.1',     # RTA
-    # 'ip route 192.168.1.32 255.255.255.224',    # RTB
-    # 'ip route 0.0.0.0 0.0.0.0 10.0.0.1',        # RTC
+    result.extend(execute_command(clients, 0, ['ip route 0.0.0.0 0.0.0.0 192.168.1.1']))    # RTA
+    result.extend(execute_command(clients, 1, ['ip route 192.168.1.32 255.255.255.224']))   # RTB
+    result.extend(execute_command(clients, 2, ['ip route 0.0.0.0 0.0.0.0 10.0.0.1']))       # RTC
     command_a = ['ip nat inside source static 10.0.0.2 192.168.1.34',
                  'ip nat inside source static 10.0.0.11 192.168.1.35',
                  'interface e0',
                  'ip nat inside',
                  'interface s0',
                  'ip nat outside']
-    print(services.test())
+    # print(services.test())
     result = execute_command(clients, 0, command_a)
     return make_response(jsonify(result), 200)
 
