@@ -18,8 +18,8 @@ class TelnetConnect():
             logging.warning('%s网络连接失败' % self.host_ip)
         else:
             # 等待login出现后输入用户名，最多等待10秒
-            self.tn.read_until(b'login: ', timeout=10)
-            self.tn.write(self.username.encode('ascii') + b'\n')
+            # self.tn.read_until(b'login: ', timeout=10)
+            # self.tn.write(self.username.encode('ascii') + b'\n')
             # 等待Password出现后输入用户名，最多等待10秒
             self.tn.read_until(b'Password: ', timeout=10)
             self.tn.write(self.password.encode('ascii') + b'\n')
@@ -29,6 +29,9 @@ class TelnetConnect():
             # read_very_eager()获取到的是的是上次获取之后本次获取之前的所有输出
             command_result = self.tn.read_very_eager().decode('ascii')
             if 'Login incorrect' not in command_result:
+                self.tn.write('enable'.encode('ascii') + b'\n')
+                self.tn.read_until(b'Password: ', timeout=10)
+                self.tn.write(self.password.encode('ascii') + b'\n')
                 logging.warning('%s登录成功' % self.host_ip)
                 return True
             else:
@@ -41,7 +44,7 @@ class TelnetConnect():
         for i in range(len(command)):
             # 执行命令
             self.tn.write(command[i].encode('ascii') + b'\n')
-            time.sleep(3)
+            time.sleep(10) if command == 'ip nat inside' else time.sleep(1)
             # 获取命令结果
             command_result = self.tn.read_very_eager().decode('ascii')
             responses.append(command_result)

@@ -6,17 +6,14 @@ app = Flask(__name__)
 
 # 建立连接
 def connect():
-    if g.connections and g.connections.length > 0:
-        return g.connections
-    rta = {'host_ip': '192.168.1.2', 'username': '', 'password': 'CISCO'}
-    rtb = {'host_ip': '192.168.1.1', 'username': '', 'password': 'CISCO'}
-    rtc = {'host_ip': '10.0.0.2', 'username': '', 'password': 'CISCO'}
+    rta = {'host_ip': '172.16.0.1', 'username': '', 'password': 'CISCO'}
+    rtb = {'host_ip': '172.16.0.2', 'username': '', 'password': 'CISCO'}
+    rtc = {'host_ip': '172.16.0.3', 'username': '', 'password': 'CISCO'}
     client1 = services.init_connection(rta.get('host_ip'), rta.get('username'), rta.get('password'))
     client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
     client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
-    g.connections = [client1, client2, client3]
-    # g.connections = [client1]
-    return g.connections
+    g = [client1, client2, client3]
+    return g
 
 
 # 执行命令行
@@ -34,9 +31,7 @@ def execute_command(clients, idx, commands):
 @app.route('/router_config')
 def config_routers():
     clients = connect()
-    command_a = ['enable',
-                 'CISCO',
-                 'conf ter',
+    command_a = ['conf ter',
                  'int f0/0',
                  'ip address 10.0.0.1 255.0.0.0',
                  'no shutdown',
@@ -44,9 +39,7 @@ def config_routers():
                  'ip address 192.168.1.2 255.255.255.252',
                  'no shutdown',
                  'end']
-    command_b = ['enable',
-                 'CISCO',
-                 'conf ter',
+    command_b = ['conf ter',
                  'int f0/0',
                  'ip address 192.168.3.1 255.255.255.0',
                  'no shutdown',
@@ -54,9 +47,7 @@ def config_routers():
                  'ip address 192.168.1.1 255.255.255.252',
                  'no shutdown',
                  'end']
-    command_c = ['enable',
-                 'CISCO',
-                 'conf ter',
+    command_c = ['conf ter',
                  'int f0/0',
                  'ip address 10.0.0.2 255.0.0.0',
                  'no shutdown',
@@ -74,17 +65,21 @@ def set_static_nat():
     clients = connect()
     result = []
     # 'ip subnet-zero',
-    result.extend(execute_command(clients, 0, ['ip route 0.0.0.0 0.0.0.0 192.168.1.1']))    # RTA
-    result.extend(execute_command(clients, 1, ['ip route 192.168.1.32 255.255.255.224']))   # RTB
-    result.extend(execute_command(clients, 2, ['ip route 0.0.0.0 0.0.0.0 10.0.0.1']))       # RTC
-    command_a = ['ip nat inside source static 10.0.0.2 192.168.1.34',
+    # RTA
+    result.extend(execute_command(clients, 0, ['conf ter', 'ip subnet-zero', 'ip route 0.0.0.0 0.0.0.0 192.168.1.1']))
+    # RTB
+    result.extend(execute_command(clients, 1, ['conf ter', 'ip route 192.168.1.32 255.255.255.224 192.168.1.2']))
+    # RTC
+    result.extend(execute_command(clients, 2, ['conf ter', 'ip subnet-zero', 'ip route 0.0.0.0 0.0.0.0 10.0.0.1']))
+    command_a = ['conf ter',
+                 'ip nat inside source static 10.0.0.2 192.168.1.34',
                  'ip nat inside source static 10.0.0.11 192.168.1.35',
-                 'interface e0',
+                 'interface f0/0',
                  'ip nat inside',
-                 'interface s0',
+                 'interface s0/0/0',
                  'ip nat outside']
     # print(services.test())
-    result = execute_command(clients, 0, command_a)
+    result.extend(execute_command(clients, 0, command_a))
     return make_response(jsonify(result), 200)
 
 
@@ -92,8 +87,10 @@ def set_static_nat():
 @app.route('/delete_static_nat')
 def delete_static_nat():
     clients = connect()
-    command_a = ['no ip nat inside source static 10.0.0.2 192.168.1.34',
-                 'no ip nat inside source static 10.0.0.11 192.168.1.35']
+    command_a = ['conf ter',
+                 'no ip nat inside source static 10.0.0.2 192.168.1.34',
+                 'no ip nat inside source static 10.0.0.11 192.168.1.35',
+                 'yes']
     result = execute_command(clients, 0, command_a)
     return make_response(jsonify(result), 200)
 
@@ -101,21 +98,15 @@ def delete_static_nat():
 # 配置动态NAT
 @app.route('/dynamic_nat')
 def set_dynamic_nat():
-    if g.static:
-        return '未删除静态NAT配置'
     clients = connect()
-    command_a = ['ip nat pool globalXXYZ 192.168.1.33 192.168.1.57 netmask 255.255.255.224',
+    command_a = ['conf ter',
+                 'ip nat pool globalXXYZ 192.168.1.33 192.168.1.57 netmask 255.255.255.224',
                  'access-list 1 permit 10.0.0.0 0.255.255.255',
                  'ip nat inside source list 1 pool globalXYZ overload',
-                 'interface e0',
+                 'interface f0/0',
                  'ip nat inside',
-                 'interface s0',
+                 'interface s0/0/0',
                  'ip nat outside']
-    # 'ip http server',
-    # 'ip nat pool Webservers 10.0.0.1 10.0.0.2 netmask 255.0.0.0 type rotary',
-    # 'access-list 2 permit host 192.169.1.60',
-    # 'ip nat inside destination list 2 pool Webservers'
-    # command_c = ['ip http server']
     result = []
     result.extend(execute_command(clients, 0, command_a))
     # result.extend(execute_command(clients, 2, command_c))
