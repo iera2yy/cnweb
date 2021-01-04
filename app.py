@@ -1,7 +1,9 @@
-from flask import Flask, render_template, g, jsonify, make_response
+from flask import Flask, render_template, jsonify, make_response
+from flask_cors import CORS
 import services
 
 app = Flask(__name__)
+CORS(app, supports_credentials=True)
 
 
 # 建立连接
@@ -12,8 +14,13 @@ def connect():
     client1 = services.init_connection(rta.get('host_ip'), rta.get('username'), rta.get('password'))
     client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
     client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
-    g = [client1, client2, client3]
-    return g
+    return [client1, client2, client3]
+
+
+# 断开连接
+def disconnect(clients: list):
+    for tcl in clients:
+        tcl.logout_host()
 
 
 # 执行命令行
@@ -21,9 +28,6 @@ def execute_command(clients, idx, commands):
     response = []
     if clients[idx].login_host():
         response = clients[idx].execute_some_command(commands)
-        if clients[idx].logout_host():
-            g.connections = []
-    g.static = True
     return response
 
 
@@ -56,6 +60,7 @@ def config_routers():
     result.extend(execute_command(clients, 0, command_a))
     result.extend(execute_command(clients, 1, command_b))
     result.extend(execute_command(clients, 2, command_c))
+    disconnect(clients)
     return make_response(jsonify(result), 200)
 
 
@@ -80,6 +85,7 @@ def set_static_nat():
                  'ip nat outside']
     # print(services.test())
     result.extend(execute_command(clients, 0, command_a))
+    disconnect(clients)
     return make_response(jsonify(result), 200)
 
 
@@ -92,6 +98,7 @@ def delete_static_nat():
                  'no ip nat inside source static 10.0.0.11 192.168.1.35',
                  'yes']
     result = execute_command(clients, 0, command_a)
+    disconnect(clients)
     return make_response(jsonify(result), 200)
 
 
@@ -109,7 +116,7 @@ def set_dynamic_nat():
                  'ip nat outside']
     result = []
     result.extend(execute_command(clients, 0, command_a))
-    # result.extend(execute_command(clients, 2, command_c))
+    disconnect(clients)
     return make_response(jsonify(result), 200)
 
 
@@ -121,6 +128,7 @@ def show_nat():
                  'show ip nat translations verbose',
                  'show ip nat statistics']
     result = execute_command(clients, 0, command_a)
+    disconnect(clients)
     return make_response(jsonify(result), 200)
 
 
@@ -131,12 +139,19 @@ def show_command():
     command_a = ['show running-config',
                  'show ip nat translations']
     result = execute_command(clients, 0, command_a)
+    disconnect(clients)
     return make_response(jsonify(result), 200)
 
 
 @app.route('/')
 def index():
     return render_template('homepage.html')
+
+
+@app.route('/test')
+def test_port():
+    result = ['this is a test']
+    return make_response(jsonify(result), 200)
 
 
 if __name__ == '__main__':
