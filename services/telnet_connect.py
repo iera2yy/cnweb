@@ -40,7 +40,7 @@ class TelnetConnect():
         for i in range(len(command)):
             # 执行命令
             self.tn.write(command[i].encode('ascii') + b'\n')
-            time.sleep(10) if command == 'ip nat inside' else time.sleep(2)
+            time.sleep(10) if command[i] == 'ip nat inside' else time.sleep(2)
             # 获取命令结果
             command_result = self.tn.read_very_eager().decode('ascii')
             responses.append(command_result)
