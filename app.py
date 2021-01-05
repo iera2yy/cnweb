@@ -8,9 +8,9 @@ CORS(app, supports_credentials=True)
 
 # 建立连接
 def connect():
-    rta = {'host_ip': '172.16.0.1', 'username': '', 'password': 'CISCO'}
-    rtb = {'host_ip': '172.16.0.2', 'username': '', 'password': 'CISCO'}
-    rtc = {'host_ip': '172.16.0.3', 'username': '', 'password': 'CISCO'}
+    rta = {'host_ip': '172.16.0.1', 'username': 'RTA', 'password': 'CISCO'}
+    rtb = {'host_ip': '172.16.0.2', 'username': 'RTB', 'password': 'CISCO'}
+    rtc = {'host_ip': '172.16.0.3', 'username': 'RTC', 'password': 'CISCO'}
     client1 = services.init_connection(rta.get('host_ip'), rta.get('username'), rta.get('password'))
     client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
     client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
@@ -21,6 +21,7 @@ def connect():
 def disconnect(clients: list):
     for tcl in clients:
         tcl.logout_host()
+        print("%s telnet连接已断开!!!" % tcl.get_hostname())
 
 
 # 执行命令行
@@ -34,7 +35,7 @@ def execute_command(clients, idx, commands):
 # 配置路由器信息
 @app.route('/router_config')
 def config_routers():
-    clients = connect()
+    # clients = connect()
     command_a = ['conf ter',
                  'int f0/0',
                  'ip address 10.0.0.1 255.0.0.0',
@@ -56,11 +57,11 @@ def config_routers():
                  'ip address 10.0.0.2 255.0.0.0',
                  'no shutdown',
                  'end']
-    result = []
-    result.extend(execute_command(clients, 0, command_a))
-    result.extend(execute_command(clients, 1, command_b))
-    result.extend(execute_command(clients, 2, command_c))
-    disconnect(clients)
+    result = {"message": ["telnet coming", "test", "teststststst"]}
+    # result["message"].extend(execute_command(clients, 0, command_a))
+    # result["message"].extend(execute_command(clients, 1, command_b))
+    # result["message"].extend(execute_command(clients, 2, command_c))
+    # disconnect(clients)
     return make_response(jsonify(result), 200)
 
 

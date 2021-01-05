@@ -28,10 +28,10 @@ class TelnetConnect():
                 self.tn.write('enable'.encode('ascii') + b'\n')
                 self.tn.read_until(b'Password: ', timeout=10)
                 self.tn.write(self.password.encode('ascii') + b'\n')
-                print('%s登录成功' % self.host_ip)
+                print('\n%s登录成功' % self.host_ip, end='')
                 return True
             else:
-                print('%s登录失败，用户名或密码错误' % self.host_ip)
+                print('\n%s登录失败，用户名或密码错误' % self.host_ip, end='')
                 return False
 
     # 此函数实现执行传过来的命令，并输出其执行结果
@@ -44,13 +44,17 @@ class TelnetConnect():
             # 获取命令结果
             command_result = self.tn.read_very_eager().decode('ascii')
             responses.append(command_result)
-            print('命令执行结果：\n%s' % command_result)
+            print(" " + command_result, end='')
         return responses
 
     # 退出telnet
     def logout_host(self):
         self.tn.write(b"exit\n")
         return True
+
+    # 获取路由器名
+    def get_hostname(self):
+        return self.username
 
 
 class NetworkError(RuntimeError):
