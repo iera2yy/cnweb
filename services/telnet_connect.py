@@ -2,7 +2,7 @@ import telnetlib
 import time
 
 
-class TelnetConnect():
+class TelnetConnect:
     def __init__(self, host_ip, username, password):
         self.tn = telnetlib.Telnet()
         self.host_ip = host_ip
