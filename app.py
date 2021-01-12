@@ -14,7 +14,8 @@ session = {"state": -1,
            "rta": {"f0/0": "", "s0/0/0": ""},
            "rtb": {"f0/0": "", "s0/0/0": ""},
            "rtc": {"f0/0": "", "s0/0/0": ""},
-           "staticNat": []}
+           "staticNat": [],
+           "dynamicNat": []}
 
 
 # 与三台路由器建立telnet连接
@@ -202,6 +203,7 @@ def set_dynamic_nat():
     result["message"].extend(execute_command(clients, 0, command_a))
     disconnect(clients)
     session["state"] = 4
+    session["dynamicNat"] = data_dynamic
     return make_response(jsonify(format_result(result)), 200)
 
 
