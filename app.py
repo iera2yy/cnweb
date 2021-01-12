@@ -153,9 +153,9 @@ def set_static_nat():
 # 删除静态NAT配置
 @app.route('/delete_static_nat', methods=["POST"])
 def delete_static_nat():
-    clients = connect()
     global session
     if session["state"] == 2:
+        clients = connect()
         command_a = [('no ip nat inside source static ' + item["from"] + ' ' + item["to"])
                      for item in session["staticNat"]]
         command_a = ['conf ter'] + command_a + ['yes']
@@ -172,13 +172,15 @@ def delete_static_nat():
 @app.route('/dynamic_nat', methods=["POST"])
 def set_dynamic_nat():
     global session
-    clients = connect()
     result = {"message": []}
+    clients = connect()
     if session["state"] == -1:
+        disconnect(clients)
         return "路由未配置!"
     elif session["state"] == 0:
         result["message"].extend(route_protocol(clients))
     elif session["state"] == 2:
+        disconnect(clients)
         return "静态NAT未删除!"
     data = json.loads(request.get_data(as_text=True))
     data_dynamic = data["dynamicNat"]
@@ -207,9 +209,7 @@ def set_dynamic_nat():
 @app.route('/show_nat', methods=["POST"])
 def show_nat():
     clients = connect()
-    command_a = ['show ip nat translations',
-                 'show ip nat translations verbose',
-                 'show ip nat statistics']
+    command_a = ['show ip nat translations']
     result = {"message": []}
     result["message"].extend(execute_command(clients, 0, command_a))
     print(result)
@@ -224,6 +224,22 @@ def show_command():
     command_a = ['show running-config']
     result = {"message": []}
     result["message"].extend(execute_command(clients, 0, command_a))
+    disconnect(clients)
+    return make_response(jsonify(format_result(result)), 200)
+
+
+@app.route('/verify', methods=["POST"])
+def verification():
+    global session
+    if session["state"] != 2 or session["state"] != 4:
+        return "静态/动态路由均为配置!"
+    clients = connect()
+    result = {"message": []}
+    if session["state"] == 2:
+        result["message"].extend(execute_command(clients, 2,
+                                                 [('ping ' + item["to"]) for item in session["staticNat"]]))
+    elif session["state"] == 4:
+        result["message"].extend(execute_command(clients, 2, ['ping ' + session["rtb"]["f0/0"]]))
     disconnect(clients)
     return make_response(jsonify(format_result(result)), 200)
 
