@@ -2,16 +2,22 @@ from flask import Flask, render_template, jsonify, make_response, request
 from flask_cors import CORS
 import services
 import json
+import re
 
 app = Flask(__name__)
+
+# 开启跨域资源共享
 CORS(app, supports_credentials=True)
+# 全局变量，存储全局需要的信息
+# state: -1未配置；0路由器配置完成；1路由转发协议配置完成；2静态NAT配置完成；4动态NAT配置完成
 session = {"state": -1,
            "rta": {"f0/0": "", "s0/0/0": ""},
            "rtb": {"f0/0": "", "s0/0/0": ""},
-           "rtc": {"f0/0": "", "s0/0/0": ""}}
+           "rtc": {"f0/0": "", "s0/0/0": ""},
+           "staticNat": []}
 
 
-# 建立连接
+# 与三台路由器建立telnet连接
 def connect():
     rta = {'host_ip': '172.16.0.1', 'username': 'RTA', 'password': 'CISCO'}
     rtb = {'host_ip': '172.16.0.2', 'username': 'RTB', 'password': 'CISCO'}
@@ -22,7 +28,7 @@ def connect():
     return [client1, client2, client3]
 
 
-# 断开连接
+# 断开telnet连接
 def disconnect(clients: list):
     for tcl in clients:
         if not tcl:
@@ -30,7 +36,7 @@ def disconnect(clients: list):
             print("%s telnet连接已断开!!!" % tcl.get_hostname())
 
 
-# 执行命令行
+# 执行命令行，负责向路由器发送指令
 def execute_command(clients, idx, commands):
     response = []
     if clients[idx].login_host():
@@ -38,7 +44,7 @@ def execute_command(clients, idx, commands):
     return response
 
 
-# 调整输出格式
+# 格式化输出信息内容
 def format_result(result):
     for i in range(len(result["message"]) - 1):
         if result["message"][i]:
@@ -48,6 +54,7 @@ def format_result(result):
     return result
 
 
+# 格式化配置指令
 def format_config(data, rt):
     command = ['conf ter']
     global session
@@ -60,6 +67,7 @@ def format_config(data, rt):
     return command
 
 
+# 格式化路由转发协议指令
 def format_static(rt):
     res = ['conf ter', 'ip subnet-zero']
     tmp = 'ip route '
@@ -68,7 +76,7 @@ def format_static(rt):
         tmp += '0.0.0.0 0.0.0.0 ' + session[rt]["s0/0/0"]
     elif rt == 'rtb':
         target_ip = session[rt]["s0/0/0"].split('.')
-        target_ip[3] = '221'
+        target_ip[3] = '32'
         target_ip = '.'.join(target_ip)
         mask = '255.255.255.224'
         tmp += target_ip + ' ' + mask + ' ' + session[rt]["s0/0/0"]
@@ -78,10 +86,32 @@ def format_static(rt):
     return res
 
 
-# 配置路由器信息
+# 配置路由转发协议
+def route_protocol(clients):
+    res = []
+    res.extend(execute_command(clients, 0, format_static("rta")))
+    res.extend(execute_command(clients, 1, format_static("rtb")))
+    res.extend(execute_command(clients, 2, format_static("rtc")))
+    global session
+    session["state"] = 1
+    return res
+
+
+# 正则匹配网段，确保前端输入是局域网可用ip
+def get_network_segment(ip):
+    if re.match(r'^10(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3}$', ip):
+        return ['10.0.0.0', '0.255.255.255']
+    elif re.match(r'^172\.16(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){2}$', ip):
+        return ['172.16.0.0', '0.0.255.255']
+    elif re.match(r'^192\.168(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){2}$', ip):
+        return ['192.168.0.0', '0.0.0.255']
+    return None
+
+
+# 配置路由器信息，包括接口ip、掩码
 @app.route('/router_config', methods=["POST"])
 def config_routers():
-    # clients = connect()
+    clients = connect()
     data = json.loads(request.get_data(as_text=True))
     data_rta = data["rta"] if "rta" in data.keys() else []
     data_rtb = data["rtb"] if "rtb" in data.keys() else []
@@ -89,18 +119,17 @@ def config_routers():
     command_a = format_config(data_rta, "rta")
     command_b = format_config(data_rtb, "rtb")
     command_c = format_config(data_rtc, "rtc")
-    result = {"message": [' '.join(command_a), ' '.join(command_b), ' '.join(command_c)]}
-    # result["message"].extend(execute_command(clients, 0, command_a))
-    # result["message"].extend(execute_command(clients, 1, command_b))
-    # result["message"].extend(execute_command(clients, 2, command_c))
-    # disconnect(clients)
+    result = {"message": []}
+    result["message"].extend(execute_command(clients, 0, command_a))
+    result["message"].extend(execute_command(clients, 1, command_b))
+    result["message"].extend(execute_command(clients, 2, command_c))
+    disconnect(clients)
     global session
     session["state"] = 0
     return make_response(jsonify(format_result(result)), 200)
-    # return make_response(jsonify(result), 200)
 
 
-# 配置静态NAT
+# 执行静态NAT配置
 @app.route('/static_nat', methods=["POST"])
 def set_static_nat():
     data = json.loads(request.get_data(as_text=True))
@@ -109,56 +138,68 @@ def set_static_nat():
         data_static = data["staticNat"]
         global session
         result = {"message": []}
-        result["message"].extend(execute_command(clients, 0, format_static("rta")))     # RTA
-        # print(format_static("rta"))
-        result["message"].extend(execute_command(clients, 1, format_static("rtb")))     # RTB
-        # print(format_static("rtb"))
-        result["message"].extend(execute_command(clients, 2, format_static("rtc")))     # RTC
-        # print(format_static("rtc"))
+        result["message"].extend(route_protocol(clients))
         command_a = [('ip nat inside source static ' + item["from"] + ' ' + item["to"]) for item in data_static]
         command_a = ['conf ter'] + command_a + ['interface f0/0', 'ip nat inside', 'interface s0/0/0', 'ip nat outside']
         result["message"].extend(execute_command(clients, 0, command_a))
         disconnect(clients)
-        session["state"] = 1
-        # return make_response(jsonify(command_a), 200)
+        session["state"] = 2
+        session["staticNat"] = data_static
         return make_response(jsonify(format_result(result)), 200)
     else:
         return "静态NAT配置信息不全!"
 
 
-# 删除静态NAT
+# 删除静态NAT配置
 @app.route('/delete_static_nat', methods=["POST"])
 def delete_static_nat():
     clients = connect()
-    command_a = ['conf ter',
-                 'no ip nat inside source static 10.0.0.2 192.168.1.34',
-                 'no ip nat inside source static 10.0.0.11 192.168.1.35',
-                 'yes']
-    result = {"message": []}
-    result["message"].extend(execute_command(clients, 0, command_a))
-    disconnect(clients)
     global session
-    session["state"] = 0
-    return make_response(jsonify(format_result(result)), 200)
+    if session["state"] == 2:
+        command_a = [('no ip nat inside source static ' + item["from"] + ' ' + item["to"])
+                     for item in session["staticNat"]]
+        command_a = ['conf ter'] + command_a + ['yes']
+        result = {"message": []}
+        result["message"].extend(execute_command(clients, 0, command_a))
+        disconnect(clients)
+        session["state"] = 1
+        return make_response(jsonify(format_result(result)), 200)
+    else:
+        return "静态NAT未配置或已删除，无需重复操作!"
 
 
-# 配置动态NAT
+# 执行动态NAT配置
 @app.route('/dynamic_nat', methods=["POST"])
 def set_dynamic_nat():
+    global session
     clients = connect()
+    result = {"message": []}
+    if session["state"] == -1:
+        return "路由未配置!"
+    elif session["state"] == 0:
+        result["message"].extend(route_protocol(clients))
+    elif session["state"] == 2:
+        return "静态NAT未删除!"
+    data = json.loads(request.get_data(as_text=True))
+    data_dynamic = data["dynamicNat"]
+    ip_domain = get_network_segment(session["rta"]["f0/0"])
+    if not ip_domain:
+        return "配置网段非局域网ip，请重新配置!"
+    result["message"].extend(format_static("rta"))
+    result["message"].extend(format_static("rtb"))
+    result["message"].extend(format_static("rtc"))
     command_a = ['conf ter',
-                 'ip nat pool globalXXYZ 192.168.1.33 192.168.1.57 netmask 255.255.255.224',
-                 'access-list 1 permit 10.0.0.0 0.255.255.255',
+                 'ip nat pool globalXXYZ ' + data_dynamic["from"] +
+                 ' ' + data_dynamic["to"] + ' netmask ' + data_dynamic["mask"],
+                 'access-list 1 permit ' + ip_domain[0] + ' ' + ip_domain[1],
                  'ip nat inside source list 1 pool globalXYZ overload',
                  'interface f0/0',
                  'ip nat inside',
                  'interface s0/0/0',
                  'ip nat outside']
-    result = {"message": []}
     result["message"].extend(execute_command(clients, 0, command_a))
     disconnect(clients)
-    global session
-    session["state"] = 2
+    session["state"] = 4
     return make_response(jsonify(format_result(result)), 200)
 
 
