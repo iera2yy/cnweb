@@ -11,11 +11,11 @@ CORS(app, supports_credentials=True)
 # 全局变量，存储全局需要的信息
 # state: -1未配置；0路由器配置完成；1路由转发协议配置完成；2静态NAT配置完成；4动态NAT配置完成
 session = {"state": -1,
-           "rta": {"f0/0": "", "s0/0/0": ""},
+           "rta": {"f0/0": "", "": ""},
            "rtb": {"f0/0": "", "s0/0/0": ""},
            "rtc": {"f0/0": "", "s0/0/0": ""},
            "staticNat": [],
-           "dynamicNat": []}
+           "dynamicNat": {}}
 
 
 # 与三台路由器建立telnet连接
@@ -26,7 +26,10 @@ def connect():
     client1 = services.init_connection(rta.get('host_ip'), rta.get('username'), rta.get('password'))
     client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
     client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
-    return [client1, client2, client3]
+    clients = [client1, client2, client3]
+    if session["state"] == -1:
+        execute_command(clients, 0, ["ping 172.16.0.1", "ping 172.16.0.2", "ping 172.16.0.3"])
+    return clients
 
 
 # 断开telnet连接
@@ -74,15 +77,15 @@ def format_static(rt):
     tmp = 'ip route '
     global session
     if rt == 'rta':
-        tmp += '0.0.0.0 0.0.0.0 ' + session[rt]["s0/0/0"]
+        tmp += '0.0.0.0 0.0.0.0 ' + session["rtb"]["s0/0/0"]
     elif rt == 'rtb':
-        target_ip = session[rt]["s0/0/0"].split('.')
+        target_ip = session["rta"]["s0/0/0"].split('.')
         target_ip[3] = '32'
         target_ip = '.'.join(target_ip)
         mask = '255.255.255.224'
-        tmp += target_ip + ' ' + mask + ' ' + session[rt]["s0/0/0"]
+        tmp += target_ip + ' ' + mask + ' ' + session["rta"]["s0/0/0"]
     elif rt == 'rtc':
-        tmp += '0.0.0.0 0.0.0.0 ' + session[rt]["f0/0"]
+        tmp += '0.0.0.0 0.0.0.0 ' + session["rta"]["f0/0"]
     res.append(tmp)
     return res
 
@@ -113,7 +116,7 @@ def get_network_segment(ip):
 @app.route('/router_config', methods=["POST"])
 def config_routers():
     clients = connect()
-    data = json.loads(request.get_data(as_text=True))
+    data = json.loads(request.get_data(as_text=True))["config"]
     data_rta = data["rta"] if "rta" in data.keys() else []
     data_rtb = data["rtb"] if "rtb" in data.keys() else []
     data_rtc = data["rtc"] if "rtc" in data.keys() else []
@@ -152,7 +155,7 @@ def set_static_nat():
 
 
 # 删除静态NAT配置
-@app.route('/delete_static_nat', methods=["POST"])
+@app.route('/delete_static_nat')
 def delete_static_nat():
     global session
     if session["state"] == 2:
@@ -214,34 +217,44 @@ def show_nat():
     command_a = ['show ip nat translations']
     result = {"message": []}
     result["message"].extend(execute_command(clients, 0, command_a))
-    print(result)
     disconnect(clients)
     return make_response(jsonify(format_result(result)), 200)
 
 
-# 核验配置
-@app.route('/show_config', methods=["POST"])
-def show_command():
-    clients = connect()
-    command_a = ['show running-config']
-    result = {"message": []}
-    result["message"].extend(execute_command(clients, 0, command_a))
-    disconnect(clients)
-    return make_response(jsonify(format_result(result)), 200)
+# # 核验配置
+# @app.route('/show_config', methods=["POST"])
+# def show_command():
+#     clients = connect()
+#     command_a = ['show running-config']
+#     result = {"message": []}
+#     result["message"].extend(execute_command(clients, 0, command_a))
+#     disconnect(clients)
+#     return make_response(jsonify(format_result(result)), 200)
 
 
 @app.route('/verify', methods=["POST"])
 def verification():
     global session
-    if session["state"] != 2 or session["state"] != 4:
-        return "静态/动态路由均为配置!"
+    print(session["state"])
+    if session["state"] != 2 and session["state"] != 4:
+        return "静态/动态路由均未配置!"
     clients = connect()
     result = {"message": []}
     if session["state"] == 2:
         result["message"].extend(execute_command(clients, 2,
                                                  [('ping ' + item["to"]) for item in session["staticNat"]]))
+        for info in result["message"]:
+            if not re.search(r'Success rate is ([1-9][0-9]?|100) percent', info):
+                return "静态路由配置错误!"
+        else:
+            result["message"] = ["静态路由配置正确!"]
     elif session["state"] == 4:
-        result["message"].extend(execute_command(clients, 2, ['ping ' + session["rtb"]["f0/0"]]))
+        result["message"].extend(execute_command(clients, 0, ['ping ' + session["rtb"]["f0/0"]]))
+        for info in result["message"]:
+            if not re.search(r'Success rate is ([1-9][0-9]?|100) percent', info):
+                return "动态路由配置错误!"
+        else:
+            result["message"] = ["动态路由配置正确!"]
     disconnect(clients)
     return make_response(jsonify(format_result(result)), 200)
 
