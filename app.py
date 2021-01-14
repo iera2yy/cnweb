@@ -16,18 +16,6 @@ session = {"state": -1,
            "rtc": {"f0/0": "", "s0/0/0": ""},
            "staticNat": [],
            "dynamicNat": {}}
-# session = {"state": 1,
-#            "rta": {"f0/0": "10.0.0.1", "s0/0/0": "192.168.1.2"},
-#            "rtb": {"f0/0": "192.168.3.1", "s0/0/0": "192.168.1.1"},
-#            "rtc": {"f0/0": "10.0.0.2", "s0/0/0": ""},
-#            "staticNat": [{
-#                 "from": "10.0.0.2",
-#                 "to": "192.168.1.34"
-#             }, {
-#                 "from": "10.0.0.11",
-#                 "to": "192.168.1.36"
-#             }],
-#            "dynamicNat": {}}
 
 
 # 与三台路由器建立telnet连接
@@ -233,17 +221,7 @@ def show_nat():
     return make_response(jsonify(format_result(result)), 200)
 
 
-# # 核验配置
-# @app.route('/show_config', methods=["POST"])
-# def show_command():
-#     clients = connect()
-#     command_a = ['show running-config']
-#     result = {"message": []}
-#     result["message"].extend(execute_command(clients, 0, command_a))
-#     disconnect(clients)
-#     return make_response(jsonify(format_result(result)), 200)
-
-
+# 检查静态NAT或动态NAT是否配置成功
 @app.route('/verify')
 def verification():
     global session
