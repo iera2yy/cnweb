@@ -11,11 +11,23 @@ CORS(app, supports_credentials=True)
 # 全局变量，存储全局需要的信息
 # state: -1未配置；0路由器配置完成；1路由转发协议配置完成；2静态NAT配置完成；4动态NAT配置完成
 session = {"state": -1,
-           "rta": {"f0/0": "", "": ""},
+           "rta": {"f0/0": "", "s0/0/0": ""},
            "rtb": {"f0/0": "", "s0/0/0": ""},
            "rtc": {"f0/0": "", "s0/0/0": ""},
            "staticNat": [],
            "dynamicNat": {}}
+# session = {"state": 1,
+#            "rta": {"f0/0": "10.0.0.1", "s0/0/0": "192.168.1.2"},
+#            "rtb": {"f0/0": "192.168.3.1", "s0/0/0": "192.168.1.1"},
+#            "rtc": {"f0/0": "10.0.0.2", "s0/0/0": ""},
+#            "staticNat": [{
+#                 "from": "10.0.0.2",
+#                 "to": "192.168.1.34"
+#             }, {
+#                 "from": "10.0.0.11",
+#                 "to": "192.168.1.36"
+#             }],
+#            "dynamicNat": {}}
 
 
 # 与三台路由器建立telnet连接
@@ -24,11 +36,11 @@ def connect():
     rtb = {'host_ip': '172.16.0.2', 'username': 'RTB', 'password': 'CISCO'}
     rtc = {'host_ip': '172.16.0.3', 'username': 'RTC', 'password': 'CISCO'}
     client1 = services.init_connection(rta.get('host_ip'), rta.get('username'), rta.get('password'))
+    if session["state"] == -1:
+        execute_command([client1], 0, ["ping 172.16.0.1", "ping 172.16.0.2", "ping 172.16.0.3"])
     client2 = services.init_connection(rtb.get('host_ip'), rtb.get('username'), rtb.get('password'))
     client3 = services.init_connection(rtc.get('host_ip'), rtc.get('username'), rtc.get('password'))
     clients = [client1, client2, client3]
-    if session["state"] == -1:
-        execute_command(clients, 0, ["ping 172.16.0.1", "ping 172.16.0.2", "ping 172.16.0.3"])
     return clients
 
 
@@ -232,7 +244,7 @@ def show_nat():
 #     return make_response(jsonify(format_result(result)), 200)
 
 
-@app.route('/verify', methods=["POST"])
+@app.route('/verify')
 def verification():
     global session
     print(session["state"])
